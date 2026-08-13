@@ -1,0 +1,242 @@
+const express = require('express');
+const cors = require('cors');
+const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const client = new BedrockRuntimeClient({
+    region: 'us-east-1',
+    credentials: {
+        accessKeyId: 'AKIAWCMNVAK5EX3UZNK7',
+        secretAccessKey: '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'
+    }
+});
+
+app.post('/bedrock', async (req, res) => {
+    const { prompt } = req.body;
+    console.log('Received prompt:', prompt);
+   
+    try {
+    const command = new InvokeModelCommand({
+      modelId: 'amazon.nova-lite-v1:0',
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: JSON.stringify({
+        messages: [
+            { "role": "user", "content": [{ "text": prompt }] }
+        ],
+      })
+    });
+        const response = await client.send(command);
+        const responseBody = JSON.parse(Buffer.from(response.body).toString());
+        console.log('Bedrock response:', responseBody);
+
+        // Try to extract the text from possible locations
+        let text = '';
+        if (
+            responseBody.outputs &&
+            responseBody.outputs[0] &&
+            responseBody.outputs[0].text
+        ) {
+            text = responseBody.outputs[0].text.trim();
+        } else if (
+            responseBody.completions &&
+            responseBody.completions[0] &&
+            responseBody.completions[0].data &&
+            responseBody.completions[0].data.text
+        ) {
+            text = responseBody.completions[0].data.text.trim();
+        } else if (
+            responseBody.results &&
+            responseBody.results[0] &&
+            responseBody.results[0].output &&
+            responseBody.results[0].output.text
+        ) {
+            text = responseBody.results[0].output.text.trim();
+        } else if (responseBody.generation) {
+            text = responseBody.generation.trim();
+        } else {
+            text = JSON.stringify(responseBody);
+        }
+
+      // After extracting the text
+        console.log('Extracted text:', text);
+        text = text.replace(/kardjar/gi, 'Kardian');
+
+        res.json({ response: text });
+    } catch (error) {
+        console.error('Error invoking Bedrock:', error);
+        res.status(500).json({ error: 'Failed to invoke Bedrock model.' });
+    }
+});
+
+app.listen(3000, () => console.log('Server running on port 3000'));
+
+
+
+
+
+
+const express = require('express');
+const cors = require('cors');
+const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const client = new BedrockRuntimeClient({
+    region: 'us-east-1', // Atualize para sua região
+    credentials: {
+        accessKeyId: 'YOUR_ACCESS_KEY', // Substitua pela sua Access Key
+        secretAccessKey: 'YOUR_SECRET_KEY' // Substitua pela sua Secret Key
+    }
+});
+
+// Função para limpar Markdown, escapes e caracteres indesejados
+function cleanText(text) {
+    if (!text || typeof text !== 'string') return 'No response received.';
+    return text
+        .replace(/\\n/g, ' ') // Remove quebras de linha
+        .replace(/\\"/g, '"') // Remove barras antes de aspas
+        .replace(/\\+/g, '') // Remove barras invertidas extras
+        .replace(/[*_]{1,2}/g, '') // Remove asteriscos e sublinhados (Markdown)
+        .replace(/#+/g, '') // Remove cabeçalhos Markdown
+        .replace(/\[.*?\]\(.*?\)/g, '') // Remove links Markdown
+        .replace(/```[\s\S]*?```/g, '') // Remove blocos de código Markdown
+        .replace(/Kadjar/gi, 'Kardian') // Corrige "Kadjar" para "Kardian"
+        .replace(/kard ian/gi, 'Kardian') // Corrige "Kard ian" para "Kardian"
+        .trim();
+}
+
+app.post('/bedrock', async (req, res) => {
+    const { prompt } = req.body;
+    console.log('Received prompt:', prompt);
+
+    try {
+        const command = new InvokeModelCommand({
+            modelId: 'amazon.nova-lite-v1:0',
+            contentType: 'application/json',
+            accept: 'application/json',
+            body: JSON.stringify({
+                messages: [
+                    { role: 'user', content: [{ text: `Repita exatamente o texto: ${prompt}` }]} // Prompt mais explícito
+                ],
+                inferenceConfig: {
+                    temperature: 0,
+                    topP: 0,
+                    maxTokens: 500
+                }
+            })
+        });
+
+        const response = await client.send(command);
+        const responseBody = JSON.parse(Buffer.from(response.body).toString());
+        console.log('Bedrock response (raw):', responseBody);
+
+        // Extrair o texto da resposta
+        let text = '';
+        if (
+            responseBody.output &&
+            responseBody.output.message &&
+            responseBody.output.message.content &&
+            responseBody.output.message.content[0] &&
+            responseBody.output.message.content[0].text
+        ) {
+            text = responseBody.output.message.content[0].text;
+        } else if (responseBody.message && responseBody.message.content && responseBody.message.content[0] && responseBody.message.content[0].text) {
+            text = responseBody.message.content[0].text; // Formato alternativo
+        } else {
+            text = JSON.stringify(responseBody); // Fallback para depuração
+        }
+
+        // Limpar o texto
+        text = cleanText(text);
+        console.log('Cleaned response:', text);
+
+        res.json({ response: text });
+    } catch (error) {
+        console.error('Error invoking Bedrock:', error);
+        res.status(500).json({ error: `Failed to invoke Bedrock: ${error.message}` });
+    }
+});
+
+app.listen(3000, () => console.log('Server running on port 3000'));
+
+
+
+const express = require('express');
+const cors = require('cors');
+const { BedrockAgentRuntimeClient, RetrieveAndGenerateCommand } = require('@aws-sdk/client-bedrock-agent-runtime');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const client = new BedrockAgentRuntimeClient({
+    region: 'us-east-1', // Atualize para sua região
+    credentials: {
+        accessKeyId: 'YOUR_ACCESS_KEY', // Substitua pela sua Access Key
+        secretAccessKey: 'YOUR_SECRET_KEY' // Substitua pela sua Secret Key
+    }
+});
+
+// Função para limpar Markdown, escapes e caracteres indesejados
+function cleanText(text) {
+    if (!text || typeof text !== 'string') return 'Nenhuma resposta recebida.';
+    return text
+        .replace(/\\n/g, ' ') // Remove quebras de linha
+        .replace(/\\"/g, '"') // Remove barras antes de aspas
+        .replace(/\\+/g, '') // Remove barras invertidas extras
+        .replace(/[*_]{1,2}/g, '') // Remove asteriscos e sublinhados (Markdown)
+        .replace(/#+/g, '') // Remove cabeçalhos Markdown
+        .replace(/\[.*?\]\(.*?\)/g, '') // Remove links Markdown
+        .replace(/```[\s\S]*?```/g, '') // Remove blocos de código Markdown
+        .replace(/Kadjar/gi, 'Kardian') // Corrige "Kadjar" para "Kardian" (fallback)
+        .replace(/kard ian/gi, 'Kardian') // Corrige "Kard ian" para "Kardian"
+        .trim();
+}
+
+app.post('/bedrock', async (req, res) => {
+    const { prompt } = req.body;
+    console.log('Received prompt:', prompt);
+
+    try {
+        const command = new RetrieveAndGenerateCommand({
+            input: {
+                text: `Instrução: Responda em português do Brasil. ${prompt}` // Adiciona instrução de idioma
+            },
+            retrieveAndGenerateConfiguration: {
+                type: 'KNOWLEDGE_BASE',
+                knowledgeBaseConfiguration: {
+                    knowledgeBaseId: 'YOUR_KNOWLEDGE_BASE_ID', // Substitua pelo ID da sua KB
+                    modelArn: 'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0', // Substitua pelo ARN do modelo
+                    retrievalConfiguration: {
+                        vectorSearchConfiguration: {
+                            numberOfResults: 5 // Quantidade de resultados da KB
+                        }
+                    }
+                }
+            }
+        });
+
+        const response = await client.send(command);
+        console.log('Bedrock response (raw):', response);
+
+        // Extrair o texto da resposta
+        let text = response.output.text || 'Nenhuma resposta recebida.';
+
+        // Limpar o texto
+        text = cleanText(text);
+        console.log('Cleaned response:', text);
+
+        res.json({ response: text });
+    } catch (error) {
+        console.error('Error invoking Bedrock:', error);
+        res.status(500).json({ error: `Falha ao invocar o Bedrock: ${error.message}` });
+    }
+});
+
+app.listen(3000, () => console.log('Server running on port 3000'));
